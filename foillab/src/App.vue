@@ -3,6 +3,8 @@ import TopBar from './components/TopBar.vue'
 import SplitPane from './components/SplitPane.vue'
 import FoilEditor from './components/FoilEditor.vue'
 import AnalysisPanel from './components/AnalysisPanel.vue'
+import ComparePanel from './components/ComparePanel.vue'
+import SuggestPanel from './components/SuggestPanel.vue'
 import { useFoilStore } from './stores/foilStore'
 
 const store = useFoilStore()
@@ -28,6 +30,7 @@ const store = useFoilStore()
             </button>
           </div>
           <AnalysisPanel v-if="store.rightPanelTab === 'analysis'" />
+          <SuggestPanel v-else-if="store.rightPanelTab === 'suggest'" />
           <div v-else class="placeholder">{{ store.rightPanelTab }} (coming soon)</div>
         </div>
       </template>
