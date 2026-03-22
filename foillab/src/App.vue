@@ -5,6 +5,7 @@ import FoilEditor from './components/FoilEditor.vue'
 import AnalysisPanel from './components/AnalysisPanel.vue'
 import ComparePanel from './components/ComparePanel.vue'
 import SuggestPanel from './components/SuggestPanel.vue'
+import GuidedMode from './components/GuidedMode.vue'
 import { useFoilStore } from './stores/foilStore'
 
 const store = useFoilStore()
@@ -19,20 +20,23 @@ const store = useFoilStore()
       </template>
       <template #right>
         <div class="right-panel">
-          <div class="tab-bar">
-            <button
-              v-for="tab in ['analysis', 'compare', 'suggest']"
-              :key="tab"
-              :class="{ active: store.rightPanelTab === tab }"
-              @click="store.rightPanelTab = tab as any"
-            >
-              {{ tab.charAt(0).toUpperCase() + tab.slice(1) }}
-            </button>
-          </div>
-          <AnalysisPanel v-if="store.rightPanelTab === 'analysis'" />
-          <ComparePanel v-else-if="store.rightPanelTab === 'compare'" />
-          <SuggestPanel v-else-if="store.rightPanelTab === 'suggest'" />
-          <div v-else class="placeholder">{{ store.rightPanelTab }} (coming soon)</div>
+          <GuidedMode v-if="store.guidedMode" />
+          <template v-else>
+            <div class="tab-bar">
+              <button
+                v-for="tab in ['analysis', 'compare', 'suggest']"
+                :key="tab"
+                :class="{ active: store.rightPanelTab === tab }"
+                @click="store.rightPanelTab = tab as any"
+              >
+                {{ tab.charAt(0).toUpperCase() + tab.slice(1) }}
+              </button>
+            </div>
+            <AnalysisPanel v-if="store.rightPanelTab === 'analysis'" />
+            <ComparePanel v-else-if="store.rightPanelTab === 'compare'" />
+            <SuggestPanel v-else-if="store.rightPanelTab === 'suggest'" />
+            <div v-else class="placeholder">{{ store.rightPanelTab }} (coming soon)</div>
+          </template>
         </div>
       </template>
     </SplitPane>
