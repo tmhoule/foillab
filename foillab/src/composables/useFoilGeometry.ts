@@ -43,8 +43,12 @@ export function discretizeProfile(
   numPanels: number,
 ): Array<{ x: number; y: number }> {
   const halfN = Math.floor(numPanels / 2)
-  const upperPts = interpolateBezierCurve(profile.upper, halfN + 1)
-  const lowerPts = interpolateBezierCurve(profile.lower, halfN + 1)
+  // Oversample the Bezier curves to get a smooth source curve, then cosine-resample
+  // down to the desired panel count. Using only halfN+1 samples can preserve Bezier
+  // interpolation wiggles that the panel method amplifies into Cp oscillations.
+  const oversample = 500
+  const upperPts = interpolateBezierCurve(profile.upper, oversample)
+  const lowerPts = interpolateBezierCurve(profile.lower, oversample)
 
   function cosineResample(pts: Array<{ x: number; y: number }>, n: number) {
     const resampled: Array<{ x: number; y: number }> = []
