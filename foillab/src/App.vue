@@ -30,6 +30,7 @@ const store = useFoilStore()
             </button>
           </div>
           <AnalysisPanel v-if="store.rightPanelTab === 'analysis'" />
+          <ComparePanel v-else-if="store.rightPanelTab === 'compare'" />
           <SuggestPanel v-else-if="store.rightPanelTab === 'suggest'" />
           <div v-else class="placeholder">{{ store.rightPanelTab }} (coming soon)</div>
         </div>
