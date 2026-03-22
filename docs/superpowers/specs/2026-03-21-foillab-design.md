@@ -27,6 +27,7 @@ The app runs entirely client-side (Vue 3, no backend) with educational/direction
 - Profile defined by draggable control points with cubic Bezier curves
 - Bezier handles visible on selected point for curvature control
 - Toolbar: Select, Add Point, Delete Point, Undo, Reset
+- Undo: linear stack (unlimited depth) covering control point moves, point add/delete, library loads, and Apply from Suggest tab. Each operation is one undo step. Reset clears the undo stack.
 - Constraints: snap-to-grid, mirror symmetry (top/bottom linked), show/hide camber line
 - Status bar: chord length, thickness ratio, camber %, control point count
 - Coordinate tooltip on hover (normalized x, y)
@@ -43,13 +44,14 @@ The app runs entirely client-side (Vue 3, no backend) with educational/direction
 - **Coefficient cards** — CL, CD, L/D displayed prominently with color coding
 - **CL vs AoA polar** — lift curve with current operating point marked
 - **Pressure distribution (Cp)** — upper and lower surface curves, shaded area between showing pressure difference
-- **Rider performance estimates** — speed range (kts), wind range (kts), ideal rider weight (kg), character summary (e.g., "Stable, forgiving, early takeoff") with visual range bars
+- **Rider performance estimates** — speed range (kts), wind range (kts), ideal rider weight (kg), character summary (e.g., "Stable, forgiving, early takeoff") with visual range bars. Settings popover for foil area (m²), rider weight (kg), and water type (salt/fresh)
 
 ### Compare Tab
 
 - **Shape overlay** — two profiles on same axes, solid vs dashed, color-coded with legend
 - **Performance delta table** — side-by-side CL, CD, L/D with percentage deltas, color-coded green (better) / red (worse)
-- Compare current editor shape against any library profile or previously saved shape
+- Compare current editor shape against any library profile or a saved baseline snapshot
+- "Save as baseline" button stores the current profile in-session for comparison (named "Baseline 1", "Baseline 2", etc.)
 
 ### Suggest Tab
 
@@ -57,8 +59,8 @@ The app runs entirely client-side (Vue 3, no backend) with educational/direction
 - **Suggestion cards** ranked by estimated impact (High/Medium/Low):
   - Description of what to change and why
   - Estimated performance impact
-  - **Apply** — modifies control points in the editor
-  - **Preview** — ghosted overlay of suggested shape before committing
+  - **Apply** — modifies specific control points in the editor (not a full profile replacement). Multiple suggestions can be applied in sequence. Each Apply is a single undo step. Analysis recomputes immediately after Apply.
+  - **Preview** — ghosted overlay of the suggested shape on the editor canvas. Editor remains interactive during preview. Click "Apply" to commit or "Dismiss" to remove the ghost.
 
 ### Guided Mode
 
@@ -76,12 +78,31 @@ Progress indicator shows current step. Not a separate app — `GuidedMode.vue` c
 
 ### Physics Engine (client-side JavaScript)
 
-- **Thin airfoil theory** — fast approximate CL while dragging control points (< 1ms, real-time feedback)
-- **Hess-Smith panel method** — more accurate CL, CD, Cp on control point release or AoA change (~10-50ms for typical point counts)
-- **Performance translator** — maps aero coefficients to rider outputs:
-  - Lift equation (L = 0.5 × ρ × V² × S × CL) solved for speed/wind ranges given foil area and rider weight
-  - Stability heuristics from camber distribution, thickness, pitching moment
-  - Character classification from shape metrics
+**Thin airfoil theory (real-time, < 1ms):**
+- Used while dragging control points for instant feedback
+- CL = 2π(α + α_L0) where α_L0 is the zero-lift angle computed from the camber line
+- Provides CL only — no drag or pressure distribution
+
+**Hess-Smith panel method (on release, ~10-50ms):**
+- Triggered when the user releases a control point or changes AoA
+- Discretization: 80–120 panels, cosine-clustered at leading and trailing edges (finer spacing where curvature is highest, coarser mid-chord)
+- Profile is interpolated from Bezier curves into panel endpoints
+- Standard Kutta condition at trailing edge (γ_TE = 0). For blunt trailing edges (thickness > 1% chord at TE), the two TE panels are treated as a single point — acceptable for educational accuracy
+- Computes: CL (from circulation), pressure drag CD_p (from surface pressure integration), and Cp distribution
+- **CD is pressure drag only** — viscous drag is not modeled. This is stated clearly in the UI: "Pressure drag only — total drag will be higher in practice." L/D values are noted as optimistic estimates
+- AoA slider range: -10° to +20°, step 0.5°
+
+**Input validation / edge cases:**
+- Self-intersecting profiles: detected by checking for crossing segments before running the panel method. If detected, show a warning badge on the editor ("Self-intersecting profile — fix to see analysis") and freeze analysis at last valid state
+- Extreme AoA: if the panel method fails to converge (CL diverges), clamp the display and show "Stalled — results unreliable above this AoA" on the polar chart
+- Zero-thickness profiles: minimum thickness ratio enforced at 0.5% — control points are constrained to prevent collapse
+
+**Performance translator** — maps aero coefficients to rider outputs:
+- Lift equation (L = 0.5 × ρ × V² × S × CL) solved for speed/wind ranges
+- **ρ = 1025 kg/m³** (saltwater default, toggle for freshwater 1000 kg/m³)
+- **S (foil planform area)** and **rider weight**: user-configurable inputs in a settings popover on the Analysis tab (defaults: S = 0.12 m², weight = 80 kg). Also prompted during Guided Mode step 2
+- Stability heuristics from camber distribution, thickness, pitching moment
+- Character classification from shape metrics
 
 ### Suggestion Engine
 
@@ -95,7 +116,44 @@ For each optimization goal, applies relevant rules to current shape, ranks by es
 
 ## Data Model
 
-- **Foil profile**: Array of `{x, y}` coordinates (normalized 0–1 on chord) plus Bezier control handle offsets
+### Foil Profile Structure
+
+A profile is a single closed loop defined as two curves (upper and lower surface) that share leading edge (x=0) and trailing edge (x=1) points:
+
+```typescript
+interface FoilProfile {
+  name: string;
+  upper: BezierPoint[];  // leading edge → trailing edge
+  lower: BezierPoint[];  // leading edge → trailing edge
+}
+
+interface BezierPoint {
+  x: number;            // 0–1 normalized chord position
+  y: number;            // normalized distance from chord line
+  handleIn: { dx: number; dy: number };   // incoming tangent handle offset
+  handleOut: { dx: number; dy: number };  // outgoing tangent handle offset
+}
+```
+
+- Upper and lower surfaces are separate curves joined at LE (x=0) and TE (x=1)
+- "Mirror symmetry" constraint links upper/lower points at the same x position — dragging an upper point mirrors the y-offset (negated) to the corresponding lower point
+- Library profiles (stored as coordinate arrays) are converted to Bezier control points using cubic spline fitting with ~8-12 points per surface, cosine-clustered at leading and trailing edges for better resolution where curvature is highest
+
+### Snapshots for Comparison
+
+In-session snapshot mechanism: a "Save as baseline" action in the Compare tab stores the current profile in memory. Multiple baselines can be saved per session (named automatically: "Baseline 1", "Baseline 2", etc.). These are lost on page refresh — the export/import JSON flow is for longer-term persistence.
+
+### Export Format
+
+```typescript
+interface FoilExport {
+  version: 1;
+  name: string;
+  upper: Array<{ x: number; y: number; hix: number; hiy: number; hox: number; hoy: number }>;
+  lower: Array<{ x: number; y: number; hix: number; hiy: number; hox: number; hoy: number }>;
+}
+```
+
 - **Library profiles**: Static JSON files bundled with the app
 - **No persistence layer** — profiles live in memory. Export/import as JSON for saving work.
 
@@ -122,6 +180,7 @@ src/
     GuidedMode.vue        — step-by-step overlay
   composables/
     useFoilGeometry.ts    — profile math, Bezier interpolation, metrics
+    useThinAirfoil.ts     — thin airfoil theory (real-time CL approximation)
     usePanelMethod.ts     — Hess-Smith panel method solver
     usePerformance.ts     — aero-to-rider performance translator
     useSuggestions.ts     — rule-based optimization engine
@@ -130,6 +189,14 @@ src/
   stores/
     foilStore.ts          — Pinia store for current profile + analysis state
 ```
+
+## Testing Strategy
+
+- **Panel method validation**: unit tests against known NACA results (e.g., NACA 0012 at 0° AoA → CL ≈ 0, symmetric Cp; NACA 2412 at 5° → CL ≈ 0.85 ± 15%)
+- **Thin airfoil theory**: unit tests for CL = 2πα on symmetric profiles, correct α_L0 for cambered profiles
+- **Bezier interpolation**: unit tests for curve fitting accuracy, endpoint continuity, and library profile round-trip conversion
+- **Geometry validation**: unit tests for self-intersection detection, thickness ratio calculation, camber computation
+- **Vue components**: component tests for editor interactions (drag, add/delete point, undo), tab switching, and guided mode step progression using Vitest + Vue Test Utils
 
 ## Out of Scope
 
