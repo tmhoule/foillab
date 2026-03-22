@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useFoilStore } from '../stores/foilStore'
 import FoilOverlay from './charts/FoilOverlay.vue'
 import FoilLibrary from './FoilLibrary.vue'
-import { computeThicknessRatio, computeMaxCamber } from '../composables/useFoilGeometry'
+import { computeThicknessRatio, computeMaxCamber, detectSelfIntersection } from '../composables/useFoilGeometry'
 import type { FoilProfile, BezierPoint } from '../types/foil'
 
 const store = useFoilStore()
@@ -135,7 +135,13 @@ function onWindowMouseUp() {
   }
 
   store.updateProfile(workingProfile.value)
-  store.runAnalysis(store.aoa)
+
+  if (detectSelfIntersection(workingProfile.value)) {
+    store.selfIntersecting = true
+  } else {
+    store.selfIntersecting = false
+    store.runAnalysis(store.aoa)
+  }
 
   isDragging.value = false
   workingProfile.value = null
@@ -203,6 +209,13 @@ function onSvgClick(event: MouseEvent) {
 
   surface.splice(bestSegIdx + 1, 0, newPt)
   store.updateProfile(profile)
+
+  if (detectSelfIntersection(profile)) {
+    store.selfIntersecting = true
+  } else {
+    store.selfIntersecting = false
+    store.runAnalysis(store.aoa)
+  }
 }
 
 // ── Delete point tool ────────────────────────────────────────────────────────
@@ -215,6 +228,13 @@ function onPointClick(index: number, surface: 'upper' | 'lower') {
 
   pts.splice(index, 1)
   store.updateProfile(profile)
+
+  if (detectSelfIntersection(profile)) {
+    store.selfIntersecting = true
+  } else {
+    store.selfIntersecting = false
+    store.runAnalysis(store.aoa)
+  }
 
   if (selectedSurface.value === surface && selectedIdx.value === index) {
     selectedIdx.value = -1
@@ -324,6 +344,11 @@ function onPointClick(index: number, surface: 'upper' | 'lower') {
           <input type="checkbox" v-model="showCamberLine" />
           Show camber line
         </label>
+      </div>
+
+      <!-- Self-intersection warning -->
+      <div v-if="store.selfIntersecting" class="self-intersect-warning">
+        ⚠ Self-intersecting profile — fix to see analysis
       </div>
 
       <!-- Status bar -->
@@ -452,6 +477,18 @@ function onPointClick(index: number, surface: 'upper' | 'lower') {
 .constraint-label input[type="checkbox"] {
   accent-color: #00d4ff;
   cursor: pointer;
+}
+
+/* ── Self-intersection warning ───────────────────────────────────────────── */
+.self-intersect-warning {
+  display: flex;
+  align-items: center;
+  padding: 5px 10px;
+  background: #332200;
+  border-top: 1px solid #554400;
+  color: #ffd93d;
+  font-size: 0.78em;
+  flex-shrink: 0;
 }
 
 /* ── Status bar ──────────────────────────────────────────────────────────── */
