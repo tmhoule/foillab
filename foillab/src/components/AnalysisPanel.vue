@@ -19,8 +19,8 @@ onMounted(() => {
 <template>
   <div class="analysis-panel">
 
-    <!-- AoA Slider -->
-    <section class="section">
+    <!-- AoA Slider (sticky) -->
+    <div class="aoa-sticky">
       <div class="section-header">
         <span class="section-title">Angle of Attack</span>
         <span class="aoa-label">{{ store.aoa.toFixed(1) }}°</span>
@@ -40,7 +40,7 @@ onMounted(() => {
         <span>10°</span>
         <span>20°</span>
       </div>
-    </section>
+    </div>
 
     <!-- Coefficient Cards -->
     <section class="section">
@@ -197,6 +197,15 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.aoa-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #0d0d1a;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #333;
+  margin-bottom: 12px;
+}
 .analysis-panel {
   height: 100%;
   overflow-y: auto;
