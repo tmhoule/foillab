@@ -73,28 +73,42 @@ const selectedPoint = computed(() => {
     <path v-if="ghostPath" :d="ghostPath" fill="none" :stroke="ghostColor" stroke-width="0.003" stroke-dasharray="0.01 0.005" />
 
     <!-- Main profile -->
-    <path :d="mainPath" :fill="color + '08'" :stroke="color" stroke-width="0.003" />
+    <path :d="mainPath" :fill="color + '08'" :stroke="color" stroke-width="0.003" style="pointer-events: none" />
 
     <!-- Control points -->
     <template v-if="showControlPoints">
-      <circle
-        v-for="(pt, i) in profile.upper"
-        :key="'u'+i"
-        :cx="pt.x" :cy="-pt.y" r="0.008"
-        fill="#ff6b6b" stroke="#fff" stroke-width="0.002"
-        style="cursor: grab"
-        @mousedown.prevent="emit('pointMouseDown', i, 'upper', $event)"
-        @click.stop="emit('pointClick', i, 'upper')"
-      />
-      <circle
-        v-for="(pt, i) in profile.lower"
-        :key="'l'+i"
-        :cx="pt.x" :cy="-pt.y" r="0.008"
-        fill="#ff6b6b" stroke="#fff" stroke-width="0.002"
-        style="cursor: grab"
-        @mousedown.prevent="emit('pointMouseDown', i, 'lower', $event)"
-        @click.stop="emit('pointClick', i, 'lower')"
-      />
+      <!-- Upper surface points -->
+      <template v-for="(pt, i) in profile.upper" :key="'u'+i">
+        <!-- Invisible larger hit area for easier grabbing -->
+        <circle
+          :cx="pt.x" :cy="-pt.y" r="0.02"
+          fill="transparent"
+          style="cursor: grab"
+          @mousedown.prevent="emit('pointMouseDown', i, 'upper', $event)"
+          @click.stop="emit('pointClick', i, 'upper')"
+        />
+        <!-- Visible dot -->
+        <circle
+          :cx="pt.x" :cy="-pt.y" r="0.008"
+          fill="#ff6b6b" stroke="#fff" stroke-width="0.002"
+          style="cursor: grab; pointer-events: none"
+        />
+      </template>
+      <!-- Lower surface points -->
+      <template v-for="(pt, i) in profile.lower" :key="'l'+i">
+        <circle
+          :cx="pt.x" :cy="-pt.y" r="0.02"
+          fill="transparent"
+          style="cursor: grab"
+          @mousedown.prevent="emit('pointMouseDown', i, 'lower', $event)"
+          @click.stop="emit('pointClick', i, 'lower')"
+        />
+        <circle
+          :cx="pt.x" :cy="-pt.y" r="0.008"
+          fill="#ff6b6b" stroke="#fff" stroke-width="0.002"
+          style="cursor: grab; pointer-events: none"
+        />
+      </template>
     </template>
 
     <!-- Selected point handles -->

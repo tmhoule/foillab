@@ -50,7 +50,7 @@ function snap(v: number): number {
 }
 
 function cloneProfile(p: FoilProfile): FoilProfile {
-  return structuredClone(p)
+  return JSON.parse(JSON.stringify(p))
 }
 
 // ── Status bar computations ──────────────────────────────────────────────────
@@ -64,6 +64,10 @@ const pointCount = computed(() =>
   store.profile.upper.length + store.profile.lower.length
 )
 
+// Store bound references so we can remove the exact same listener
+const boundMouseMove = (e: MouseEvent) => onWindowMouseMove(e)
+const boundMouseUp = () => onWindowMouseUp()
+
 // ── Drag / select tool ───────────────────────────────────────────────────────
 function onPointMouseDown(index: number, surface: 'upper' | 'lower', _event: MouseEvent) {
   if (store.editorTool === 'delete-point') return // handled in pointClick
@@ -76,8 +80,8 @@ function onPointMouseDown(index: number, surface: 'upper' | 'lower', _event: Mou
   dragSurface.value = surface
   workingProfile.value = cloneProfile(store.profile)
 
-  window.addEventListener('mousemove', onWindowMouseMove)
-  window.addEventListener('mouseup', onWindowMouseUp)
+  window.addEventListener('mousemove', boundMouseMove)
+  window.addEventListener('mouseup', boundMouseUp)
 }
 
 function onWindowMouseMove(event: MouseEvent) {
@@ -119,6 +123,7 @@ function onWindowMouseMove(event: MouseEvent) {
     }
   }
 
+  // Show the in-progress drag via previewProfile (doesn't touch undo stack)
   store.previewProfile = cloneProfile(workingProfile.value)
 
   // Show tooltip
@@ -129,14 +134,20 @@ function onWindowMouseMove(event: MouseEvent) {
 }
 
 function onWindowMouseUp() {
+  window.removeEventListener('mousemove', boundMouseMove)
+  window.removeEventListener('mouseup', boundMouseUp)
+
   if (!isDragging.value || !workingProfile.value) {
     isDragging.value = false
     return
   }
 
-  store.updateProfile(workingProfile.value)
+  const finalProfile = workingProfile.value
 
-  if (detectSelfIntersection(workingProfile.value)) {
+  // Now push to undo stack (single entry for the whole drag)
+  store.updateProfile(finalProfile)
+
+  if (detectSelfIntersection(finalProfile)) {
     store.selfIntersecting = true
   } else {
     store.selfIntersecting = false
@@ -147,9 +158,6 @@ function onWindowMouseUp() {
   workingProfile.value = null
   store.previewProfile = null
   tooltipVisible.value = false
-
-  window.removeEventListener('mousemove', onWindowMouseMove)
-  window.removeEventListener('mouseup', onWindowMouseUp)
 }
 
 // ── Add point tool ───────────────────────────────────────────────────────────
@@ -318,9 +326,9 @@ function onPointClick(index: number, surface: 'upper' | 'lower') {
         @click="onSvgClick"
       >
         <FoilOverlay
-          :profile="store.profile"
+          :profile="isDragging && store.previewProfile ? store.previewProfile : store.profile"
           :showControlPoints="true"
-          :ghostProfile="store.previewProfile ?? undefined"
+          :ghostProfile="!isDragging && store.previewProfile ? store.previewProfile : undefined"
           :selectedPointIndex="selectedIdx"
           :selectedSurface="selectedSurface"
           :showChordLine="true"

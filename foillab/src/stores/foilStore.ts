@@ -37,16 +37,21 @@ export const useFoilStore = defineStore('foil', () => {
   })
 
   function loadProfile(p: FoilProfile) {
-    undoStack.push(structuredClone(p))
+    undoStack.push(JSON.parse(JSON.stringify(p)))
   }
 
   function updateProfile(p: FoilProfile) {
-    undoStack.push(structuredClone(p))
+    undoStack.push(JSON.parse(JSON.stringify(p)))
+  }
+
+  /** Update the displayed profile without pushing to undo stack (for live drag) */
+  function setProfileDirect(p: FoilProfile) {
+    undoStack.current.value = JSON.parse(JSON.stringify(p))
   }
 
   function undo() { undoStack.undo() }
   function redo() { undoStack.redo() }
-  function resetProfile() { undoStack.reset(structuredClone(defaultProfile)) }
+  function resetProfile() { undoStack.reset(JSON.parse(JSON.stringify(defaultProfile))) }
 
   const canUndo = computed(() => undoStack.canUndo.value)
   const canRedo = computed(() => undoStack.canRedo.value)
@@ -133,7 +138,7 @@ export const useFoilStore = defineStore('foil', () => {
     editorMode, editorTool, rightPanelTab, guidedMode,
     aoa, previewProfile, selfIntersecting,
     canUndo, canRedo,
-    loadProfile, updateProfile, undo, redo, resetProfile,
+    loadProfile, updateProfile, setProfileDirect, undo, redo, resetProfile,
     runAnalysis, getRealtimeCL, saveBaseline, updateSettings,
     getSuggestions, applySuggestion,
     exportProfile, importProfile,
