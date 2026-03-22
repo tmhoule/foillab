@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useFoilStore } from '../stores/foilStore'
 import FoilOverlay from './charts/FoilOverlay.vue'
+import FoilLibrary from './FoilLibrary.vue'
 import { computeThicknessRatio, computeMaxCamber } from '../composables/useFoilGeometry'
 import type { FoilProfile, BezierPoint } from '../types/foil'
 
@@ -339,7 +340,7 @@ function onPointClick(index: number, surface: 'upper' | 'lower') {
 
     <!-- ── Library mode ───────────────────────────────────────────────────── -->
     <template v-else>
-      <div class="library-placeholder">Library</div>
+      <FoilLibrary />
     </template>
   </div>
 
@@ -471,15 +472,6 @@ function onPointClick(index: number, surface: 'upper' | 'lower') {
 }
 .status-sep { color: #444; font-size: 0.78em; }
 
-/* ── Library placeholder ─────────────────────────────────────────────────── */
-.library-placeholder {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #444;
-  font-size: 1.1em;
-}
 </style>
 
 <!-- Tooltip is not scoped — rendered in body via Teleport -->
